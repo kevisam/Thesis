@@ -5,3 +5,9 @@ ThesisCode/RoadSaW/RoadSaW-075_s
 ThesisCode/RoadSaW/RoadSaW6-075_l
 ThesisCode/RoadSaW/RoadSaW6-075_s
 ThesisCode/RoadSaW/MergedDataset
+ThesisCode/DepthSensing/depth_anything/__pycache__
+ThesisCode/DepthSensing/torchhub/facebookresearch_dinov2_main/__pycache__
+ThesisCode/DepthSensing/torchhub/facebookresearch_dinov2_main/dinov2/__pycache__
+ThesisCode/DepthSensing/torchhub/facebookresearch_dinov2_main/dinov2/layers/__pycache__
+ThesisCode/DepthSensing/depth_anything/util/__pycache__
+ThesisCode/DepthSensing/output_video.mp4
