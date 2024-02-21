@@ -14,8 +14,10 @@ import open3d as o3d
 from tqdm import tqdm
 from zoedepth.models.builder import build_model
 from zoedepth.utils.config import get_config
-
+from zoedepth.utils.misc import colorize
+from matplotlib import pyplot as plt
 # Global settings
+#Modify these settings to adjust to specific camera setings
 FL = 715.0873
 FY = 256 * 0.6
 FX = 256 * 0.6
@@ -26,7 +28,58 @@ INPUT_DIR = './my_test/input'
 OUTPUT_DIR = './my_test/output'
 DATASET = 'nyu' # Lets not pick a fight with the model's dataloader
 
+def find_closest_point_in_point_cloud(x, y, z, point_cloud_data):
+    """
+    Find the closest point in the point cloud data to the given 3D coordinates (x, y, z).
+    
+    Parameters:
+        x (float): X-coordinate of the point.
+        y (float): Y-coordinate of the point.
+        z (float): Z-coordinate of the point.
+        point_cloud_data (numpy.ndarray): Array containing the point cloud data, where each row represents a point
+                                           with three coordinates (X, Y, Z).
+    
+    Returns:
+        closest_point (numpy.ndarray): Coordinates of the closest point in the point cloud data.
+    """
+    # Calculate Euclidean distances between the given point and all points in the point cloud data
+    distances = np.linalg.norm(point_cloud_data - np.array([x, y, z]), axis=1)
+    
+    # Find the index of the point with the minimum distance
+    closest_index = np.argmin(distances)
+    
+    # Retrieve the closest point from the point cloud data
+    closest_point = point_cloud_data[closest_index]
+    
+    return closest_point
+
+
+def convert_2d_to_3d(pixel_x,pixel_y,img,depth_map):
+
+    # Retrieve depth value from the depth map or estimation model output
+    depth_value = depth_map[pixel_y, pixel_x]  # Example: retrieve from depth map
+
+    img_width, img_height = img.size
+    img_center_x = img_width/2
+    img_center_y = img_height/2
+    focal_length_x, focal_length_y = (FX, FY) if not NYU_DATA else (FL, FL)
+    
+    # Reverse projection to obtain 3D coordinates in camera space
+    x_ndc = (pixel_x - img_center_x) / focal_length_x
+    y_ndc = (pixel_y - img_center_y) / focal_length_y
+    x_cam = depth_value * x_ndc
+    y_cam = depth_value * y_ndc
+    z_cam = depth_value
+
+    return x_cam,y_cam,z_cam
+
+    # #TODO
+    
+    # - Find how to convert original image pixel into resized image pixel
+    # - Try to use the conversion to calculate distance between two sides of sidewalk
+
 def process_images(model):
+    print("Processing started")
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
 
@@ -44,10 +97,32 @@ def process_images(model):
                 pred = pred[-1]
             pred = pred.squeeze().detach().cpu().numpy()
 
-            # Resize color image and depth to final size
+            # Resize color image and depth to final size 
+            # Output is resized because the model outputs this size
             resized_color_image = color_image.resize((FINAL_WIDTH, FINAL_HEIGHT), Image.LANCZOS)
             resized_pred = Image.fromarray(pred).resize((FINAL_WIDTH, FINAL_HEIGHT), Image.NEAREST)
-
+            
+            fig, axes = plt.subplots(1, 2, figsize=(24, 12))
+            # Plot original image
+            axes[0].imshow(color_image)
+            axes[0].set_title('Original Image')
+            
+            # Plot original image
+            axes[0].imshow(resized_color_image)
+            axes[0].set_title('Resized Image')
+            
+            plt.show()
+            
+            # Plot the colormap for the metric depth perception
+            # plt.figure(figsize=(8, 6))
+            # plt.imshow(pred, cmap='inferno_r',vmin=np.min(pred), vmax=np.max(pred))  # Choose colormap (e.g., 'viridis')
+            # plt.colorbar(label='Depth')  # Add colorbar with label
+            # plt.title('Depth Map Colormap')  # Add title
+            # plt.xlabel('Pixel X')  # Add x-axis label
+            # plt.ylabel('Pixel Y')  # Add y-axis label
+            # plt.show()
+            
+            #x and y coordinates are calculated using 
             focal_length_x, focal_length_y = (FX, FY) if not NYU_DATA else (FL, FL)
             x, y = np.meshgrid(np.arange(FINAL_WIDTH), np.arange(FINAL_HEIGHT))
             x = (x - FINAL_WIDTH / 2) / focal_length_x
@@ -73,7 +148,7 @@ def main(model_name, pretrained_resource):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--model", type=str, default='zoedepth', help="Name of the model to test")
-    parser.add_argument("-p", "--pretrained_resource", type=str, default='local::./checkpoints/depth_anything_metric_depth_indoor.pt', help="Pretrained resource to use for fetching weights.")
+    parser.add_argument("-p", "--pretrained_resource", type=str, default='local::./checkpoints/depth_anything_metric_depth_outdoor.pt', help="Pretrained resource to use for fetching weights.")
 
     args = parser.parse_args()
     main(args.model, args.pretrained_resource)
