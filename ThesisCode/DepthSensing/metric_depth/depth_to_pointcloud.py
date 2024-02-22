@@ -19,8 +19,10 @@ from matplotlib import pyplot as plt
 # Global settings
 #Modify these settings to adjust to specific camera setings
 FL = 715.0873
-FY = 256 * 0.6
-FX = 256 * 0.6
+FY = 300
+FX = 300
+#FY = 256 * 0.6
+#FX = 256 * 0.6
 NYU_DATA = False
 FINAL_HEIGHT = 256
 FINAL_WIDTH = 256
@@ -54,12 +56,12 @@ def find_closest_point_in_point_cloud(x, y, z, point_cloud_data):
     return closest_point
 
 
-def convert_2d_to_3d(pixel_x,pixel_y,img,depth_map):
+def convert_2d_to_3d(pixel_x,pixel_y,depth_map):
 
     # Retrieve depth value from the depth map or estimation model output
     depth_value = depth_map[pixel_y, pixel_x]  # Example: retrieve from depth map
 
-    img_width, img_height = img.size
+    img_width, img_height = FINAL_WIDTH,FINAL_HEIGHT
     img_center_x = img_width/2
     img_center_y = img_height/2
     focal_length_x, focal_length_y = (FX, FY) if not NYU_DATA else (FL, FL)
@@ -78,6 +80,56 @@ def convert_2d_to_3d(pixel_x,pixel_y,img,depth_map):
     # - Find how to convert original image pixel into resized image pixel
     # - Try to use the conversion to calculate distance between two sides of sidewalk
 
+def original_to_resized_pixel(original_pixel, original_size, resized_size):
+    """
+    Convert a pixel from the original image to the corresponding pixel in the resized image.
+    
+    Parameters:
+        original_pixel (tuple): Pixel coordinates (x, y) in the original image.
+        original_size (tuple): Original image size (original_width, original_height).
+        resized_size (tuple): Resized image size (resized_width, resized_height).
+    
+    Returns:
+        resized_pixel (tuple): Pixel coordinates (x_resized, y_resized) in the resized image.
+    """
+    # Unpack original pixel coordinates
+    x_original, y_original = original_pixel
+    
+    # Unpack original and resized image sizes
+    original_width, original_height = original_size
+    resized_width, resized_height = resized_size
+    
+    # Calculate scaling factors for width and height
+    scale_x = resized_width / original_width
+    scale_y = resized_height / original_height
+    
+    # Calculate corresponding pixel coordinates in the resized image
+    x_resized = int(x_original * scale_x)
+    y_resized = int(y_original * scale_y)
+    
+    return x_resized, y_resized
+
+def euclidean_distance(point1, point2):
+    """
+    Calculate the Euclidean distance between two 3D points.
+    
+    Parameters:
+        point1 (tuple or list): Coordinates of the first point (x1, y1, z1).
+        point2 (tuple or list): Coordinates of the second point (x2, y2, z2).
+    
+    Returns:
+        distance (float): Euclidean distance between the two points.
+    """
+    # Convert input points to numpy arrays
+    point1 = np.array(point1)
+    point2 = np.array(point2)
+    
+    # Calculate Euclidean distance using numpy's linalg.norm function
+    distance = np.linalg.norm(point2 - point1)
+    
+    return distance
+
+
 def process_images(model):
     print("Processing started")
     if not os.path.exists(OUTPUT_DIR):
@@ -88,6 +140,8 @@ def process_images(model):
         try:
             color_image = Image.open(image_path).convert('RGB')
             original_width, original_height = color_image.size
+            
+            print(f'Image size : {color_image.size}')
             image_tensor = transforms.ToTensor()(color_image).unsqueeze(0).to('cuda' if torch.cuda.is_available() else 'cpu')
 
             pred = model(image_tensor, dataset=DATASET)
@@ -104,13 +158,37 @@ def process_images(model):
             
             fig, axes = plt.subplots(1, 2, figsize=(24, 12))
             # Plot original image
-            axes[0].imshow(color_image)
+            axes[0].imshow(np.asarray(color_image))
             axes[0].set_title('Original Image')
             
             # Plot original image
-            axes[0].imshow(resized_color_image)
-            axes[0].set_title('Resized Image')
+            axes[1].imshow(resized_color_image)
+            axes[1].set_title('Resized Image')
             
+            ro_position = [210, 421]
+            ro_x = ro_position[0]
+            ro_y = ro_position[1]
+
+
+            other_point = [581, 418]
+            ox = other_point[0]
+            oy = other_point[1]
+            
+            new_ro = original_to_resized_pixel(ro_position,[original_width,original_height],[FINAL_WIDTH,FINAL_HEIGHT])
+            new_other = original_to_resized_pixel(other_point,[original_width,original_height],[FINAL_WIDTH,FINAL_HEIGHT])
+            
+            new_ro_3d = convert_2d_to_3d(new_ro[0],new_ro[1],np.array(resized_pred))
+            new_o_3d = convert_2d_to_3d(new_other[0],new_other[1],np.array(resized_pred))
+            
+            distance = euclidean_distance(new_o_3d,new_ro_3d)
+            
+            print(f"The sidewalk is estimated to be {distance}m long")
+            
+            axes[0].scatter(ro_x,ro_y, color="red", marker="x", s=50)
+            axes[0].scatter(ox,oy, color="red", marker="x", s=50)
+            
+            axes[1].scatter(new_ro[0],new_ro[1], color="red", marker="x", s=50)
+            axes[1].scatter(new_other[0],new_other[1], color="red", marker="x", s=50)
             plt.show()
             
             # Plot the colormap for the metric depth perception
