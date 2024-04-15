@@ -169,7 +169,8 @@ ThesisCode/RoadSaW/RoadSaW-075_s
 ThesisCode/RoadSaW/RoadSaW6-075_l
 ThesisCode/RoadSaW/RoadSaW6-075_s
 ThesisCode/RoadSaW/MergedDataset
-
+SidewalkImages/
+ThesisCode/DepthSensing/metric_depth/my_test/
 
 ThesisCode/DepthSensing/output_video.mp4
 ThesisCode/DepthSensing//checkpoints/depth_anything_metric_depth_indoor
