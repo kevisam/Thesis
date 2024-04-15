@@ -5,13 +5,18 @@ import cv2 as cv
 def points_to_calc_distance(image,largest_contour):
     # Find the moments of the largest contour
     M = cv.moments(largest_contour)
-
+    
+    #bouding rect
+    
+    rect_x,rect_y,w,h = cv.boundingRect(largest_contour)
     # Calculate the centroid
     centroid_x = int(M['m10'] / M['m00'])
     centroid_y = int(M['m01'] / M['m00'])
+    
+    y_line = int((rect_y + h)/ 2)
 
     # Draw a horizontal line across the centroid
-    cv.line(image, (0, centroid_y), (image.shape[1], centroid_y), (0, 255, 0), 2)
+    cv.line(image, (0, y_line), (image.shape[1], y_line), (0, 255, 0), 2)
 
     # Get contour points that intersect with the horizontal line
     # Define a threshold for the distance from the line
@@ -21,7 +26,7 @@ def points_to_calc_distance(image,largest_contour):
     intersecting_points = []
     for point in largest_contour:
         x, y = point[0]
-        if abs(y - centroid_y) < threshold_distance:
+        if abs(y - y_line) < threshold_distance:
             intersecting_points.append((x, y))
     return intersecting_points
 

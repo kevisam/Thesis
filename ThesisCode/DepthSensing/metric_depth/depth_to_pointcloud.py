@@ -2,6 +2,7 @@
 # Allows  the user to set up own test files to infer on (Create a folder my_test and add subfolder input and output in the metric_depth directory before running this script.)
 # Make sure you have the necessary libraries
 # Code by @1ssb
+import csv
 
 import argparse
 import os
@@ -140,11 +141,32 @@ def process_images(model):
 
     processor = AutoImageProcessor.from_pretrained("nickmuchi/segformer-b4-finetuned-segments-sidewalk")
     seg_model = SegformerForSemanticSegmentation.from_pretrained("nickmuchi/segformer-b4-finetuned-segments-sidewalk")
+    
+    #image_paths = glob.glob(os.path.join(INPUT_DIR, '*.png')) + glob.glob(os.path.join(INPUT_DIR, '*.jpg')) + glob.glob(os.path.join(INPUT_DIR, '*.jpeg'))
+    
+        # List of folder sizes
+    folder_sizes = ["90", "115", "120", "150", "160", "175", "210", "240", "290", "360"]
 
-    image_paths = glob.glob(os.path.join(INPUT_DIR, '*.png')) + glob.glob(os.path.join(INPUT_DIR, '*.jpg'))
+    # List to store image paths
+    image_paths = []
+
+    # Iterate over each folder size
+    for size in folder_sizes:
+        # Search for PNG files
+        jpg_files = glob.glob(os.path.join(INPUT_DIR, size, "*.jpg"))
+        # Search for JPEG files
+        jpeg_files = glob.glob(os.path.join(INPUT_DIR, size, "*.jpeg"))
+        
+        # Extend the image_paths list with found PNG and JPEG files
+        image_paths.extend(jpg_files)
+        image_paths.extend(jpeg_files)
+    
+    estimation_data = []
     for image_path in tqdm(image_paths, desc="Processing Images"):
         try:
             color_image = Image.open(image_path).convert('RGB')
+            if color_image.height < color_image.width: # if image is horizontal, make it vertical
+                color_image = color_image.rotate(-90, Image.NEAREST, expand = 1)
             original_width, original_height = color_image.size
             
             print(f'Image size : {color_image.size}')
@@ -191,9 +213,9 @@ def process_images(model):
             
             #Calculate Euclidean distance in 3d space
             distance = euclidean_distance(point1_3d,point2_3d)
-            
+            print(f"Image: {image_path}")
             print(f"The sidewalk is estimated to be {distance}m long")
-            
+            estimation_data.append({"image_name": image_path, "true_size": os.path.basename(image_path), "estimated_size": distance})
             #x and y coordinates are calculated using 
             focal_length_x, focal_length_y = (FX, FY) if not NYU_DATA else (FL, FL)
             x, y = np.meshgrid(np.arange(FINAL_WIDTH), np.arange(FINAL_HEIGHT))
@@ -208,26 +230,42 @@ def process_images(model):
             pcd.colors = o3d.utility.Vector3dVector(colors)
             o3d.io.write_point_cloud(os.path.join(OUTPUT_DIR, os.path.splitext(os.path.basename(image_path))[0] + ".ply"), pcd)
             
-            ## Plotting for visualisation
-            # Plot original image
-            axes[0].imshow(np.asarray(color_image))
-            axes[0].set_title('Original Image')
+            # ## Plotting for visualisation
+            # # Plot original image
+            # axes[0].imshow(np.asarray(color_image))
+            # axes[0].set_title('Original Image')
             
-            axes[1].imshow(mask)
-            axes[1].set_title('Sidewalk Mask')
+            # axes[1].imshow(mask)
+            # axes[1].set_title('Sidewalk Mask')
             
-            axes[1].scatter(point1[0],point1[1], color="red", marker="x", s=50)
-            axes[1].scatter(point2[0],point2[1], color="red", marker="x", s=50)
+            # axes[1].scatter(point1[0],point1[1], color="red", marker="x", s=50)
+            # axes[1].scatter(point2[0],point2[1], color="red", marker="x", s=50)
             
-            # Plot original image
-            axes[2].imshow(resized_color_image)
-            axes[2].set_title('Resized Image')
+            # # Plot original image
+            # axes[2].imshow(resized_color_image)
+            # axes[2].set_title('Resized Image')
             
-            axes[2].scatter(resized_point1[0],resized_point1[1], color="red", marker="x", s=50)
-            axes[2].scatter(resized_point2[0],resized_point2[1], color="red", marker="x", s=50)
-            plt.show()       
+            # axes[2].scatter(resized_point1[0],resized_point1[1], color="red", marker="x", s=50)
+            # axes[2].scatter(resized_point2[0],resized_point2[1], color="red", marker="x", s=50)
+            # plt.show()       
         except Exception as e:
             print(f"Error processing {image_path}: {e}")
+            
+    # Make a CSV to compare the original size and the estimated size
+    csv_file_path = "image_sizes.csv"
+
+    # Writing data to CSV file
+    with open(csv_file_path, mode='w', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=["image_name", "true_size", "estimated_size"])
+        
+        # Write header
+        writer.writeheader()
+        
+        # Write data
+        for row in estimation_data:
+            writer.writerow(row)
+
+    print("CSV file created successfully:", csv_file_path)
 
 def main(model_name, pretrained_resource):
     config = get_config(model_name, "eval", DATASET)
