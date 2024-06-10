@@ -1,4 +1,4 @@
-# Thesis
+# Sidewalk Width Estimation Using Monocular Cameras
 
 1) To test the size estimation module proceed as follows:
 
